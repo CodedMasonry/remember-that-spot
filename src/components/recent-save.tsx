@@ -79,7 +79,7 @@ export function RecentSave({
         className="flex w-full flex-col items-start py-7 active:scale-[0.99]"
       >
         <div className="flex w-full items-center">
-          <p className="font-semibold">{name}</p>
+          <p className="truncate font-semibold">{name}</p>
           <p className="ml-auto font-light">{formatRelativeTime(timestamp)}</p>
           <ChevronRight className="ml-2" />
         </div>
