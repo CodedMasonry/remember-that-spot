@@ -28,8 +28,8 @@ export function RecentSave() {
           <p className="ml-auto font-light">2 hrs ago</p>
           <ChevronRight className="ml-2" />
         </div>
-        <div className="flex w-full items-center gap-4">
-          <p className="flex items-center font-light">
+        <div className="tex flex w-full items-center gap-4 text-muted-foreground">
+          <p className="flex items-center gap-1 font-light">
             <HeadingIcon direction="NE" />
             NE
           </p>
