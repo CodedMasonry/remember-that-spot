@@ -2,12 +2,14 @@ import { MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TopBar } from "@/components/topbar"
 import { RecentSave } from "./components/recent-save"
+import { Separator } from "./components/ui/separator"
 
 export function App() {
   return (
     <div className="flex min-h-svh flex-col p-6">
       <TopBar />
-      <div className="mt-auto grid grid-cols-1 gap-4">
+      <p className="mt-auto mb-2 text-xs text-muted-foreground">Recent Saves</p>
+      <div className="grid grid-cols-1 gap-4">
         {/* US user — imperial, 12-hour clock */}
         <RecentSave
           name="Football Stadium"
@@ -41,9 +43,10 @@ export function App() {
           unit_system="metric"
         />
       </div>
+      <Separator className="my-4" />
       <Button
         size="lg"
-        className="mt-8 h-[33vh] w-full text-3xl font-semibold active:scale-[0.98]"
+        className="h-[33vh] w-full text-3xl font-semibold active:scale-[0.98]"
       >
         <MapPin className="size-8" strokeWidth={2.5} /> Save Location
       </Button>
