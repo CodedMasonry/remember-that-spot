@@ -7,6 +7,7 @@ import { Separator } from "./components/ui/separator"
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
   requestPermission?: () => Promise<"granted" | "denied">
+  webkitCompassHeading?: number
 }
 
 export function App() {
@@ -26,15 +27,19 @@ export function App() {
 
   useEffect(() => {
     const handler = (e: DeviceOrientationEvent) => {
-      headingRef.current = e.alpha
+      const ios = e as DeviceOrientationEventiOS
+      headingRef.current = ios.webkitCompassHeading ?? e.alpha
     }
+
     window.addEventListener("deviceorientationabsolute", handler)
-    return () =>
+    window.addEventListener("deviceorientation", handler)
+    return () => {
       window.removeEventListener("deviceorientationabsolute", handler)
+      window.removeEventListener("deviceorientation", handler)
+    }
   }, [])
 
   async function saveLocation() {
-    // iOS Safari requires permission before DeviceOrientation fires
     const event = DeviceOrientationEvent as unknown as DeviceOrientationEventiOS
     if (typeof event.requestPermission === "function") {
       await event.requestPermission()
