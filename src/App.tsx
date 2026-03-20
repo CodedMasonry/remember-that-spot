@@ -106,8 +106,6 @@ export function App() {
           unit_system: "imperial",
           gps: { latitude, longitude, accuracy, altitude, heading },
           heading_direction: heading != null ? bearingToCardinal(heading) : "N",
-          sunrise_timestamp: "",
-          sunset_timestamp: "",
         }
 
         await add(newSave)

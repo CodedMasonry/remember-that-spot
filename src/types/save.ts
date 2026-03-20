@@ -25,8 +25,6 @@ export interface SaveRecord {
   unit_system: UnitSystem
   gps: GpsReading
   heading_direction: CardinalDirection
-  sunrise_timestamp: string
-  sunset_timestamp: string
 }
 
 export type NewSaveRecord = Omit<SaveRecord, "id">

@@ -13,6 +13,7 @@ import {
   Sunrise,
   Sunset,
 } from "lucide-react"
+import SunCalc from "suncalc"
 import { Separator } from "./ui/separator"
 import type { SaveRecord, CardinalDirection } from "../types/save"
 
@@ -20,7 +21,6 @@ type Direction = CardinalDirection | "N/A"
 
 type Props = Omit<SaveRecord, "id"> & {
   id?: number
-  /** Live-computed distance from current position, or null if unknown */
   distance_meters: number | null
   onDelete?: (id: number) => void
 }
@@ -35,11 +35,8 @@ function formatRelativeTime(isoTimestamp: string): string {
   return `${days} day${days !== 1 ? "s" : ""} ago`
 }
 
-function formatTime(
-  isoTimestamp: string,
-  unitSystem: "imperial" | "metric"
-): string {
-  return new Date(isoTimestamp).toLocaleTimeString([], {
+function formatTime(date: Date, unitSystem: "imperial" | "metric"): string {
+  return date.toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
     hour12: unitSystem === "imperial",
@@ -70,11 +67,15 @@ export function RecentSave({
   gps,
   heading_direction,
   distance_meters,
-  sunrise_timestamp,
-  sunset_timestamp,
   onDelete,
 }: Props) {
   const direction: Direction = gps.heading != null ? heading_direction : "N/A"
+
+  const { sunrise, sunset } = SunCalc.getTimes(
+    new Date(),
+    gps.latitude,
+    gps.longitude
+  )
 
   return (
     <div className="flex">
@@ -86,19 +87,7 @@ export function RecentSave({
         <div className="flex w-full items-center">
           <p className="truncate font-semibold">{name}</p>
           <p className="ml-auto font-light">{formatRelativeTime(timestamp)}</p>
-          {id != null && onDelete ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete(id)
-              }}
-              className="ml-2 text-xs text-destructive hover:underline"
-            >
-              Delete
-            </button>
-          ) : (
-            <ChevronRight className="ml-2" />
-          )}
+          <ChevronRight className="ml-2" />
         </div>
         <div className="flex w-full items-center gap-4 text-muted-foreground">
           <p className="flex items-center gap-1 font-light">
@@ -112,11 +101,11 @@ export function RecentSave({
           <Separator orientation="vertical" />
           <p className="flex gap-1 font-light">
             <Sunrise className="stroke-amber-500" />
-            {formatTime(sunrise_timestamp, unit_system)}
+            {formatTime(sunrise, unit_system)}
           </p>
           <p className="flex gap-1 font-light">
             <Sunset className="stroke-amber-500" />
-            {formatTime(sunset_timestamp, unit_system)}
+            {formatTime(sunset, unit_system)}
           </p>
         </div>
       </Button>
