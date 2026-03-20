@@ -34,7 +34,7 @@ export function App() {
 
   useEffect(() => {
     hydrate()
-  }, [])
+  }, [hydrate])
 
   useEffect(() => {
     const INTERVAL_MS = 30_000
@@ -58,7 +58,7 @@ export function App() {
     fetchPosition()
     const id = setInterval(fetchPosition, INTERVAL_MS)
     return () => clearInterval(id)
-  }, [])
+  }, [setCurrentPosition])
 
   useEffect(() => {
     const handler = (e: DeviceOrientationEvent) => {
