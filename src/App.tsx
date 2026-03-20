@@ -4,21 +4,22 @@ import { Button } from "@/components/ui/button"
 import { TopBar } from "@/components/topbar"
 import { RecentSave } from "./components/recent-save"
 import { Separator } from "./components/ui/separator"
+import { useSavesStore } from "@/stores/saves-store"
+import type { NewSaveRecord, CardinalDirection } from "./types/save"
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
   requestPermission?: () => Promise<"granted" | "denied">
   webkitCompassHeading?: number
 }
 
+function bearingToCardinal(deg: number): CardinalDirection {
+  const dirs: CardinalDirection[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+  return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
+}
+
 export function App() {
-  const [location, setLocation] = useState<{
-    latitude: number
-    longitude: number
-    accuracy: number
-    altitude: number | null
-    heading: number | null
-    timestamp: Date
-  } | null>(null)
+  const { saves, hydrated, hydrate, add, remove } = useSavesStore()
+
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [saved, setSaved] = useState<boolean>(false)
@@ -26,11 +27,14 @@ export function App() {
   const headingRef = useRef<number | null>(null)
 
   useEffect(() => {
+    hydrate()
+  }, [])
+
+  useEffect(() => {
     const handler = (e: DeviceOrientationEvent) => {
       const ios = e as DeviceOrientationEventiOS
       headingRef.current = ios.webkitCompassHeading ?? e.alpha
     }
-
     window.addEventListener("deviceorientationabsolute", handler)
     window.addEventListener("deviceorientation", handler)
     return () => {
@@ -49,17 +53,30 @@ export function App() {
     setError(null)
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const { latitude, longitude, accuracy, altitude } = position.coords
-        const timestamp = new Date(position.timestamp)
-        setLocation({
-          latitude,
-          longitude,
-          accuracy,
-          altitude,
-          heading: headingRef.current,
-          timestamp,
-        })
+        const heading = headingRef.current
+
+        const newSave: NewSaveRecord = {
+          name: `Save ${new Date().toLocaleTimeString()}`,
+          timestamp: new Date().toISOString(),
+          unit_system: "imperial",
+
+          gps: {
+            latitude,
+            longitude,
+            accuracy,
+            altitude,
+            heading,
+          },
+
+          heading_direction: heading != null ? bearingToCardinal(heading) : "N",
+          distance_away_meters: 0,
+          sunrise_timestamp: "", // populate from a solar API if needed
+          sunset_timestamp: "",
+        }
+
+        await add(newSave)
         setLoading(false)
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
@@ -76,70 +93,21 @@ export function App() {
     <div className="flex min-h-svh flex-col p-6">
       <TopBar />
 
-      {location && (
-        <div className="mt-4 space-y-1 rounded-lg border p-4 text-sm">
-          <p>
-            <span className="font-medium">Lat:</span>{" "}
-            {location.latitude.toFixed(6)}
-          </p>
-          <p>
-            <span className="font-medium">Lng:</span>{" "}
-            {location.longitude.toFixed(6)}
-          </p>
-          <p>
-            <span className="font-medium">Accuracy:</span>{" "}
-            {location.accuracy.toFixed(1)} m
-          </p>
-          <p>
-            <span className="font-medium">Altitude:</span>{" "}
-            {location.altitude != null
-              ? `${location.altitude.toFixed(1)} m`
-              : "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Heading:</span>{" "}
-            {location.heading != null
-              ? `${location.heading.toFixed(1)}°`
-              : "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Time:</span>{" "}
-            {location.timestamp.toLocaleTimeString()}
-          </p>
-        </div>
-      )}
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
       <p className="mt-auto mb-2 text-xs text-muted-foreground">Recent Saves</p>
-      <div className="grid grid-cols-1 gap-4">
-        <RecentSave
-          name="Football Stadium"
-          timestamp="2026-03-18T14:32:00-05:00"
-          heading_direction="NE"
-          distance_away_meters={2092}
-          sunrise_timestamp="2026-03-18T07:14:00-05:00"
-          sunset_timestamp="2026-03-18T19:27:00-05:00"
-          unit_system="imperial"
-        />
-        <RecentSave
-          name="Café de Flore"
-          timestamp="2026-03-18T09:05:00+01:00"
-          heading_direction="W"
-          distance_away_meters={340}
-          sunrise_timestamp="2026-03-18T07:28:00+01:00"
-          sunset_timestamp="2026-03-18T19:51:00+01:00"
-          unit_system="metric"
-        />
-        <RecentSave
-          name="Alpine Base Camp"
-          timestamp="2026-03-17T16:45:00+01:00"
-          heading_direction="SW"
-          distance_away_meters={14800}
-          sunrise_timestamp="2026-03-18T06:52:00+01:00"
-          sunset_timestamp="2026-03-18T19:05:00+01:00"
-          unit_system="metric"
-        />
-      </div>
+
+      {!hydrated ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : saves.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No saves yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {saves.map((save) => (
+            <RecentSave key={save.id} {...save} onDelete={remove} />
+          ))}
+        </div>
+      )}
 
       <Separator className="my-4" />
 
@@ -147,7 +115,7 @@ export function App() {
         onClick={saveLocation}
         disabled={loading}
         size="lg"
-        className="h-[33vh] w-full text-3xl font-semibold active:scale-[0.98]"
+        className="h-[33vh] w-full text-3xl font-semibold active:scale-95"
       >
         <MapPin className="size-8" strokeWidth={2.5} />
         {loading ? "Getting location…" : saved ? "Saved!" : "Save Location"}

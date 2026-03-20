@@ -14,21 +14,13 @@ import {
   Sunset,
 } from "lucide-react"
 import { Separator } from "./ui/separator"
+import type { SaveRecord, CardinalDirection } from "../types/save"
 
-type Direction = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW"
-type UnitSystem = "imperial" | "metric"
+type Direction = CardinalDirection | "N/A"
 
-interface RecentSaveProps {
-  name: string
-  /** ISO 8601 timestamp of when the location was saved */
-  timestamp: string
-  heading_direction: Direction
-  distance_away_meters: number
-  /** ISO 8601 timestamp for sunrise at the saved location */
-  sunrise_timestamp: string
-  /** ISO 8601 timestamp for sunset at the saved location */
-  sunset_timestamp: string
-  unit_system: UnitSystem
+type Props = Omit<SaveRecord, "id"> & {
+  id?: number
+  onDelete?: (id: number) => void
 }
 
 function formatRelativeTime(isoTimestamp: string): string {
@@ -41,7 +33,10 @@ function formatRelativeTime(isoTimestamp: string): string {
   return `${days} day${days !== 1 ? "s" : ""} ago`
 }
 
-function formatTime(isoTimestamp: string, unitSystem: UnitSystem): string {
+function formatTime(
+  isoTimestamp: string,
+  unitSystem: "imperial" | "metric"
+): string {
   return new Date(isoTimestamp).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
@@ -49,34 +44,39 @@ function formatTime(isoTimestamp: string, unitSystem: UnitSystem): string {
   })
 }
 
-function formatDistance(meters: number, unitSystem: UnitSystem): string {
+function formatDistance(
+  meters: number,
+  unitSystem: "imperial" | "metric"
+): string {
   if (unitSystem === "imperial") {
     const miles = meters / 1609.344
     return miles < 0.1
       ? `${Math.round(meters * 3.28084)} ft away`
       : `${miles.toFixed(1)} mi away`
-  } else {
-    return meters < 1000
-      ? `${Math.round(meters)} m away`
-      : `${(meters / 1000).toFixed(1)} km away`
   }
+  return meters < 1000
+    ? `${Math.round(meters)} m away`
+    : `${(meters / 1000).toFixed(1)} km away`
 }
 
 export function RecentSave({
   name,
   timestamp,
+  unit_system,
+  gps,
   heading_direction,
   distance_away_meters,
   sunrise_timestamp,
   sunset_timestamp,
-  unit_system,
-}: RecentSaveProps) {
+}: Props) {
+  const direction: Direction = gps.heading != null ? heading_direction : "N/A"
+
   return (
     <div className="flex">
       <Button
         size="lg"
         variant="outline"
-        className="flex w-full flex-col items-start py-7 active:scale-[0.99]"
+        className="flex w-full flex-col items-start py-7 active:scale-95"
       >
         <div className="flex w-full items-center">
           <p className="truncate font-semibold">{name}</p>
@@ -85,8 +85,8 @@ export function RecentSave({
         </div>
         <div className="flex w-full items-center gap-4 text-muted-foreground">
           <p className="flex items-center gap-1 font-light">
-            <HeadingIcon direction={heading_direction} />
-            {heading_direction}
+            <HeadingIcon direction={direction} />
+            {direction}
           </p>
           <Separator orientation="vertical" />
           <p className="font-light">
@@ -123,6 +123,7 @@ function HeadingIcon({
     SW: ArrowDownLeft,
     W: ArrowLeft,
     NW: ArrowUpLeft,
+    "N/A": Compass,
   }
   const IconComponent = icons[direction] ?? Compass
   return <IconComponent strokeWidth={2} className={className} />
