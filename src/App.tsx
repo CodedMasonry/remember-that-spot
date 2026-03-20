@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { TopBar } from "@/components/topbar"
 import { RecentSave } from "./components/recent-save"
 import { Separator } from "./components/ui/separator"
-import { useSavesStore } from "@/stores/saves-store"
+import { useSavesStore } from "./stores/saves-store"
 import type { NewSaveRecord, CardinalDirection } from "./types/save"
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
@@ -17,17 +17,58 @@ function bearingToCardinal(deg: number): CardinalDirection {
   return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
 }
 
+function coordinateLabel(lat: number, lng: number): string {
+  const latDir = lat >= 0 ? "N" : "S"
+  const lngDir = lng >= 0 ? "E" : "W"
+  return `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`
+}
+
 export function App() {
-  const { saves, hydrated, hydrate, add, remove } = useSavesStore()
+  const {
+    saves,
+    hydrated,
+    hydrate,
+    add,
+    remove,
+    labelFor,
+    distanceFor,
+    setCurrentPosition,
+  } = useSavesStore()
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [saved, setSaved] = useState<boolean>(false)
-
   const headingRef = useRef<number | null>(null)
 
+  // Hydrate saves from IndexedDB
   useEffect(() => {
     hydrate()
+  }, [])
+
+  // Keep currentPosition up to date for live distance calculations
+  useEffect(() => {
+    const INTERVAL_MS = 30_000
+
+    function fetchPosition() {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCurrentPosition({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          })
+        },
+        () => {}, // silent — distance stays null until a fix arrives
+        {
+          enableHighAccuracy: false,
+          timeout: 10_000,
+          maximumAge: INTERVAL_MS - 1_000,
+        }
+      )
+    }
+
+    fetchPosition()
+    const id = setInterval(fetchPosition, INTERVAL_MS)
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -58,25 +99,19 @@ export function App() {
         const heading = headingRef.current
 
         const newSave: NewSaveRecord = {
-          name: `Save ${new Date().toLocaleTimeString()}`,
+          // Coordinate string as the stable fallback name
+          name: coordinateLabel(latitude, longitude),
+          // display_name left unset — user can rename later
           timestamp: new Date().toISOString(),
           unit_system: "imperial",
-
-          gps: {
-            latitude,
-            longitude,
-            accuracy,
-            altitude,
-            heading,
-          },
-
+          gps: { latitude, longitude, accuracy, altitude, heading },
           heading_direction: heading != null ? bearingToCardinal(heading) : "N",
-          distance_away_meters: 0,
-          sunrise_timestamp: "", // populate from a solar API if needed
+          sunrise_timestamp: "",
           sunset_timestamp: "",
         }
 
         await add(newSave)
+        setCurrentPosition({ latitude, longitude })
         setLoading(false)
         setSaved(true)
         setTimeout(() => setSaved(false), 2000)
@@ -104,7 +139,13 @@ export function App() {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {saves.map((save) => (
-            <RecentSave key={save.id} {...save} onDelete={remove} />
+            <RecentSave
+              key={save.id}
+              {...save}
+              name={labelFor(save)}
+              distance_meters={distanceFor(save)}
+              onDelete={remove}
+            />
           ))}
         </div>
       )}

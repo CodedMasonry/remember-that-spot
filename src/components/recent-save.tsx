@@ -20,6 +20,8 @@ type Direction = CardinalDirection | "N/A"
 
 type Props = Omit<SaveRecord, "id"> & {
   id?: number
+  /** Live-computed distance from current position, or null if unknown */
+  distance_meters: number | null
   onDelete?: (id: number) => void
 }
 
@@ -45,9 +47,10 @@ function formatTime(
 }
 
 function formatDistance(
-  meters: number,
+  meters: number | null,
   unitSystem: "imperial" | "metric"
 ): string {
+  if (meters === null) return "—"
   if (unitSystem === "imperial") {
     const miles = meters / 1609.344
     return miles < 0.1
@@ -60,14 +63,16 @@ function formatDistance(
 }
 
 export function RecentSave({
+  id,
   name,
   timestamp,
   unit_system,
   gps,
   heading_direction,
-  distance_away_meters,
+  distance_meters,
   sunrise_timestamp,
   sunset_timestamp,
+  onDelete,
 }: Props) {
   const direction: Direction = gps.heading != null ? heading_direction : "N/A"
 
@@ -81,7 +86,19 @@ export function RecentSave({
         <div className="flex w-full items-center">
           <p className="truncate font-semibold">{name}</p>
           <p className="ml-auto font-light">{formatRelativeTime(timestamp)}</p>
-          <ChevronRight className="ml-2" />
+          {id != null && onDelete ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(id)
+              }}
+              className="ml-2 text-xs text-destructive hover:underline"
+            >
+              Delete
+            </button>
+          ) : (
+            <ChevronRight className="ml-2" />
+          )}
         </div>
         <div className="flex w-full items-center gap-4 text-muted-foreground">
           <p className="flex items-center gap-1 font-light">
@@ -90,7 +107,7 @@ export function RecentSave({
           </p>
           <Separator orientation="vertical" />
           <p className="font-light">
-            {formatDistance(distance_away_meters, unit_system)}
+            {formatDistance(distance_meters, unit_system)}
           </p>
           <Separator orientation="vertical" />
           <p className="flex gap-1 font-light">
