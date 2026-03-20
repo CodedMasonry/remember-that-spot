@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import SunCalc from "suncalc"
 import { Separator } from "./ui/separator"
+import { formatRelativeTime, formatTime, formatDistance } from "../lib/format"
 import type { SaveRecord, CardinalDirection } from "../types/save"
 
 type Direction = CardinalDirection | "N/A"
@@ -22,55 +23,19 @@ type Direction = CardinalDirection | "N/A"
 type Props = Omit<SaveRecord, "id"> & {
   id?: number
   distance_meters: number | null
-  onDelete?: (id: number) => void
-}
-
-function formatRelativeTime(isoTimestamp: string): string {
-  const diff = Date.now() - new Date(isoTimestamp).getTime()
-  const minutes = Math.floor(diff / 60_000)
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} hr${hours !== 1 ? "s" : ""} ago`
-  const days = Math.floor(hours / 24)
-  return `${days} day${days !== 1 ? "s" : ""} ago`
-}
-
-function formatTime(date: Date, unitSystem: "imperial" | "metric"): string {
-  return date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: unitSystem === "imperial",
-  })
-}
-
-function formatDistance(
-  meters: number | null,
-  unitSystem: "imperial" | "metric"
-): string {
-  if (meters === null) return "—"
-  if (unitSystem === "imperial") {
-    const miles = meters / 1609.344
-    return miles < 0.1
-      ? `${Math.round(meters * 3.28084)} ft away`
-      : `${miles.toFixed(1)} mi away`
-  }
-  return meters < 1000
-    ? `${Math.round(meters)} m away`
-    : `${(meters / 1000).toFixed(1)} km away`
+  onClick?: () => void
 }
 
 export function RecentSave({
-  id,
   name,
   timestamp,
   unit_system,
   gps,
   heading_direction,
   distance_meters,
-  onDelete,
+  onClick,
 }: Props) {
   const direction: Direction = gps.heading != null ? heading_direction : "N/A"
-
   const { sunrise, sunset } = SunCalc.getTimes(
     new Date(),
     gps.latitude,
@@ -82,6 +47,7 @@ export function RecentSave({
       <Button
         size="lg"
         variant="outline"
+        onClick={onClick}
         className="flex w-full flex-col items-start py-7 active:scale-95"
       >
         <div className="flex w-full items-center">

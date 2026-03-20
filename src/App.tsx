@@ -3,24 +3,15 @@ import { MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TopBar } from "@/components/topbar"
 import { RecentSave } from "./components/recent-save"
+import { SaveDrawer } from "./components/save-drawer"
 import { Separator } from "./components/ui/separator"
 import { useSavesStore } from "./stores/saves-store"
-import type { NewSaveRecord, CardinalDirection } from "./types/save"
+import { bearingToCardinal, coordinateLabel } from "./lib/geo"
+import type { NewSaveRecord, SaveRecord } from "./types/save"
 
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
   requestPermission?: () => Promise<"granted" | "denied">
   webkitCompassHeading?: number
-}
-
-function bearingToCardinal(deg: number): CardinalDirection {
-  const dirs: CardinalDirection[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-  return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8]
-}
-
-function coordinateLabel(lat: number, lng: number): string {
-  const latDir = lat >= 0 ? "N" : "S"
-  const lngDir = lng >= 0 ? "E" : "W"
-  return `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`
 }
 
 export function App() {
@@ -38,26 +29,24 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [saved, setSaved] = useState<boolean>(false)
+  const [selectedSave, setSelectedSave] = useState<SaveRecord | null>(null)
   const headingRef = useRef<number | null>(null)
 
-  // Hydrate saves from IndexedDB
   useEffect(() => {
     hydrate()
   }, [])
 
-  // Keep currentPosition up to date for live distance calculations
   useEffect(() => {
     const INTERVAL_MS = 30_000
 
     function fetchPosition() {
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        (pos) =>
           setCurrentPosition({
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude,
-          })
-        },
-        () => {}, // silent — distance stays null until a fix arrives
+          }),
+        () => {},
         {
           enableHighAccuracy: false,
           timeout: 10_000,
@@ -99,9 +88,7 @@ export function App() {
         const heading = headingRef.current
 
         const newSave: NewSaveRecord = {
-          // Coordinate string as the stable fallback name
           name: coordinateLabel(latitude, longitude),
-          // display_name left unset — user can rename later
           timestamp: new Date().toISOString(),
           unit_system: "imperial",
           gps: { latitude, longitude, accuracy, altitude, heading },
@@ -142,11 +129,22 @@ export function App() {
               {...save}
               name={labelFor(save)}
               distance_meters={distanceFor(save)}
-              onDelete={remove}
+              onClick={() => setSelectedSave(save)}
             />
           ))}
         </div>
       )}
+
+      <SaveDrawer
+        save={selectedSave}
+        displayName={selectedSave ? labelFor(selectedSave) : ""}
+        distanceMeters={selectedSave ? distanceFor(selectedSave) : null}
+        open={selectedSave !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedSave(null)
+        }}
+        onDelete={remove}
+      />
 
       <Separator className="my-4" />
 
