@@ -1,6 +1,5 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Trash2, CheckSquare, Square } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { RecentSave } from "@/components/recent-save"
 import { SaveDrawer } from "@/components/save-drawer"
 import { useSavesStore } from "@/stores/saves-store"
@@ -9,7 +8,11 @@ import { cn } from "@/lib/utils"
 import type { SaveRecord } from "@/types/save"
 
 export default function SaveList() {
-  const { saves, remove, labelFor, distanceFor } = useSavesStore()
+  const { saves, hydrate, remove, labelFor, distanceFor } = useSavesStore()
+
+  useEffect(() => {
+    hydrate()
+  }, [hydrate])
 
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -73,7 +76,7 @@ export default function SaveList() {
         </div>
 
         {/* Action tile — Cancel in selection mode, hold-hint otherwise */}
-        <div className="flex min-w-[72px] flex-col items-center justify-center rounded-lg bg-muted/40 px-3 py-2">
+        <div className="flex min-w-18 flex-col items-center justify-center rounded-lg bg-muted/40 px-3 py-2">
           {selectionMode ? (
             <button
               onClick={exitSelectionMode}

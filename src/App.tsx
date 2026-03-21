@@ -140,7 +140,7 @@ export function App() {
 
   useEffect(() => {
     hydrate()
-  }, [])
+  }, [hydrate])
 
   useEffect(() => {
     function fetchPosition() {
@@ -167,7 +167,7 @@ export function App() {
       clearInterval(id)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [])
+  }, [setCurrentPosition])
 
   useEffect(() => {
     const handler = (e: DeviceOrientationEvent) => {
@@ -194,7 +194,11 @@ export function App() {
     attach()
 
     function onVisibilityChange() {
-      document.hidden ? detach() : attach()
+      if (document.hidden) {
+        detach()
+      } else {
+        attach()
+      }
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
@@ -214,7 +218,11 @@ export function App() {
 
     start()
     function onVisibilityChange() {
-      document.hidden ? stop() : start()
+      if (document.hidden) {
+        stop()
+      } else {
+        start()
+      }
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
@@ -306,7 +314,7 @@ export function App() {
           </span>
         </div>
 
-        <div className="flex min-w-[56px] flex-col items-center justify-center gap-1 rounded-lg bg-muted/40 px-3 py-2">
+        <div className="flex min-w-14 flex-col items-center justify-center gap-1 rounded-lg bg-muted/40 px-3 py-2">
           <MapPin className="size-4 text-muted-foreground" />
           <span
             className={cn(
