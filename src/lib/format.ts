@@ -1,9 +1,6 @@
 import type { UnitSystem } from "../types/save"
+import type { SaveRecord } from "../types/save"
 
-/**
- * Returns a relative time string from an ISO 8601 timestamp.
- * e.g. "5 min ago", "2 hrs ago", "3 days ago"
- */
 export function formatRelativeTime(isoTimestamp: string): string {
   const diff = Date.now() - new Date(isoTimestamp).getTime()
   const minutes = Math.floor(diff / 60_000)
@@ -14,10 +11,6 @@ export function formatRelativeTime(isoTimestamp: string): string {
   return `${days} day${days !== 1 ? "s" : ""} ago`
 }
 
-/**
- * Formats a Date object to a locale time string.
- * Uses 12-hour for imperial (US), 24-hour for metric.
- */
 export function formatTime(date: Date, unitSystem: UnitSystem): string {
   return date.toLocaleTimeString([], {
     hour: "numeric",
@@ -26,11 +19,6 @@ export function formatTime(date: Date, unitSystem: UnitSystem): string {
   })
 }
 
-/**
- * Formats a distance in meters to a human-readable string.
- * Returns "—" if meters is null (no position fix yet).
- * Imperial: ft / mi. Metric: m / km.
- */
 export function formatDistance(
   meters: number | null,
   unitSystem: UnitSystem
@@ -45,4 +33,39 @@ export function formatDistance(
   return meters < 1000
     ? `${Math.round(meters)} m away`
     : `${(meters / 1000).toFixed(1)} km away`
+}
+
+/**
+ * Groups saves into day buckets, most recent day first.
+ * Each bucket label is a human-readable date string.
+ */
+export function groupByDay(
+  saves: SaveRecord[]
+): { label: string; saves: SaveRecord[] }[] {
+  const map = new Map<string, SaveRecord[]>()
+
+  for (const save of saves) {
+    const date = new Date(save.timestamp)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(today.getDate() - 1)
+
+    let label: string
+    if (date.toDateString() === today.toDateString()) {
+      label = "Today"
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      label = "Yesterday"
+    } else {
+      label = date.toLocaleDateString([], {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    }
+
+    if (!map.has(label)) map.set(label, [])
+    map.get(label)!.push(save)
+  }
+
+  return Array.from(map.entries()).map(([label, saves]) => ({ label, saves }))
 }

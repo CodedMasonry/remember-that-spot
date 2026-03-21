@@ -12,10 +12,13 @@ import {
   createHashHistory,
   RouterProvider,
 } from "@tanstack/react-router"
+import { Layout } from "@/Layout"
 
 const hashHistory = createHashHistory()
 
-const rootRoute = createRootRoute()
+const rootRoute = createRootRoute({
+  component: Layout,
+})
 
 const homeRoute = createRoute({
   getParentRoute: () => rootRoute,
