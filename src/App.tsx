@@ -257,7 +257,9 @@ export function App() {
         setCurrentPosition({ latitude, longitude })
         setLoading(false)
         setSaved(true)
-        navigator.vibrate?.(80)
+        // Two-pulse confirmation pattern: works reliably on Android even from
+        // async callbacks. iOS doesn't support the Vibration API at all.
+        navigator.vibrate?.([50, 60, 80])
         setTimeout(() => setSaved(false), 2000)
       },
       (err) => {
@@ -277,6 +279,14 @@ export function App() {
   const accuracy = livePosition ? accuracyInfo(livePosition.accuracy) : null
   const cardinalHeading =
     liveHeading != null ? bearingToCardinal(liveHeading) : null
+
+  // Build a bottom-aligned display list: empty slots pad the top, most recent
+  // save always appears in the last (bottom) row closest to the save button.
+  const displaySaves = Array.from({ length: RECENT_COUNT }, (_, i) => {
+    // i=0 → top row (oldest), i=RECENT_COUNT-1 → bottom row (newest)
+    const reverseIndex = RECENT_COUNT - 1 - i
+    return hydrated ? recentSaves[reverseIndex] : undefined
+  })
 
   return (
     <div className="flex h-full flex-col gap-2 px-3 pt-3 pb-2">
@@ -333,8 +343,7 @@ export function App() {
           Recent
         </p>
         <div className="grid grid-cols-1 gap-1.5">
-          {Array.from({ length: RECENT_COUNT }).map((_, i) => {
-            const save = hydrated ? recentSaves[i] : undefined
+          {displaySaves.map((save, i) => {
             const isLoading = !hydrated
 
             if (save) {
@@ -368,6 +377,7 @@ export function App() {
       {/* ── Save button ── */}
       <button
         onClick={saveLocation}
+        onPointerDown={() => navigator.vibrate?.(10)}
         disabled={loading}
         className={cn(
           "relative flex w-full flex-1 flex-col items-center justify-center gap-3 rounded-2xl",
