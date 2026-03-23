@@ -38,3 +38,22 @@ export function coordinateLabel(lat: number, lng: number): string {
   const lngDir = lng >= 0 ? "E" : "W"
   return `${Math.abs(lat).toFixed(4)}° ${latDir}, ${Math.abs(lng).toFixed(4)}° ${lngDir}`
 }
+
+/**
+ * Opens the given coordinates in the platform's preferred maps app.
+ * iOS → Apple Maps via maps:// URI.
+ * Android/other → geo: URI which the OS routes to the user's default maps app
+ * (Google Maps, OsmAnd, etc.).
+ */
+export function openInMaps(
+  lat: number,
+  lng: number,
+  label = "Saved Location"
+): void {
+  const encoded = encodeURIComponent(label)
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+  const url = isIOS
+    ? `maps://maps.apple.com/?ll=${lat},${lng}&q=${encoded}`
+    : `geo:${lat},${lng}?q=${lat},${lng}(${encoded})`
+  window.open(url, "_blank")
+}

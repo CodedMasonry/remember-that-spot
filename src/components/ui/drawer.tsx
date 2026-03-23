@@ -59,7 +59,16 @@ function DrawerContent({
         )}
         {...props}
       >
-        <div className="mx-auto mt-4 hidden h-1.5 w-25 shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+        {/*
+         * The handle must be sticky so it stays visible and grabbable at the
+         * top of the drawer even when the content below is scrolled. Without
+         * this, vaul only allows drag-to-dismiss when scrollTop === 0, meaning
+         * the handle disappears under scrolled content and users lose the
+         * dismiss gesture entirely.
+         */}
+        <div className="sticky top-0 z-10 hidden shrink-0 rounded-t-xl bg-background pt-4 pb-1 group-data-[vaul-drawer-direction=bottom]/drawer-content:block">
+          <div className="mx-auto h-1.5 w-25 rounded-full bg-muted" />
+        </div>
         {children}
       </DrawerPrimitive.Content>
     </DrawerPortal>
@@ -71,7 +80,12 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="drawer-header"
       className={cn(
-        "flex flex-col gap-0.5 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center group-data-[vaul-drawer-direction=top]/drawer-content:text-center md:gap-1.5 md:text-left",
+        // Sticky so it stays above the scroll container and remains a reliable
+        // grab target. bg-background prevents content bleeding through.
+        "sticky top-7 z-10 flex flex-col gap-0.5 bg-background px-4 pt-2 pb-3",
+        "group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center",
+        "group-data-[vaul-drawer-direction=top]/drawer-content:text-center",
+        "md:gap-1.5 md:text-left",
         className
       )}
       {...props}

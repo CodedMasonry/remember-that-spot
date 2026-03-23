@@ -4,7 +4,7 @@ import { RecentSave } from "@/components/recent-save"
 import { SaveDrawer } from "@/components/save-drawer"
 import { useSavesStore } from "@/stores/saves-store"
 import { bearingToCardinal, coordinateLabel } from "@/lib/geo"
-import SunCalc from "suncalc"
+import { getLightInfo, getNextGoldenLabel, accuracyInfo } from "@/lib/light"
 import { cn } from "@/lib/utils"
 import type { NewSaveRecord, SaveRecord } from "@/types/save"
 
@@ -14,99 +14,6 @@ interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
 }
 
 const RECENT_COUNT = 3
-
-// ── Light quality ──────────────────────────────────────────────────────────────
-
-type LightPhase = "golden-hour" | "blue-hour" | "harsh" | "soft" | "night"
-
-interface LightInfo {
-  phase: LightPhase
-  label: string
-  detail: string
-  colorClass: string
-  bgClass: string
-}
-
-function getLightInfo(lat: number, lng: number, now: Date): LightInfo {
-  const sun = SunCalc.getPosition(now, lat, lng)
-  const alt = sun.altitude * (180 / Math.PI)
-
-  if (alt < -6)
-    return {
-      phase: "night",
-      label: "Night",
-      detail: `Sun ${Math.abs(alt).toFixed(1)}° below horizon`,
-      colorClass: "text-indigo-400",
-      bgClass: "bg-indigo-400/10",
-    }
-  if (alt < 0)
-    return {
-      phase: "blue-hour",
-      label: "Blue Hour",
-      detail: `Sun ${Math.abs(alt).toFixed(1)}° below horizon`,
-      colorClass: "text-blue-400",
-      bgClass: "bg-blue-400/10",
-    }
-  if (alt <= 6)
-    return {
-      phase: "golden-hour",
-      label: "Golden Hour",
-      detail: `Sun ${alt.toFixed(1)}° above horizon`,
-      colorClass: "text-amber-400",
-      bgClass: "bg-amber-400/10",
-    }
-  if (alt <= 20)
-    return {
-      phase: "soft",
-      label: "Soft Light",
-      detail: `Sun ${alt.toFixed(1)}° above horizon`,
-      colorClass: "text-sky-400",
-      bgClass: "bg-sky-400/10",
-    }
-  return {
-    phase: "harsh",
-    label: "Harsh Light",
-    detail: `Sun ${alt.toFixed(1)}° above horizon`,
-    colorClass: "text-orange-400",
-    bgClass: "bg-orange-400/10",
-  }
-}
-
-function getNextGoldenLabel(lat: number, lng: number, now: Date): string {
-  const today = SunCalc.getTimes(now, lat, lng)
-  const tomorrow = SunCalc.getTimes(
-    new Date(now.getTime() + 86_400_000),
-    lat,
-    lng
-  )
-  const ms = now.getTime()
-
-  const candidates = [
-    today.goldenHourEnd,
-    today.goldenHour,
-    tomorrow.goldenHourEnd,
-  ].filter((t) => t.getTime() > ms)
-
-  if (!candidates.length) return ""
-  const diffMs = candidates[0].getTime() - ms
-  const h = Math.floor(diffMs / 3_600_000)
-  const m = Math.floor((diffMs % 3_600_000) / 60_000)
-  if (h === 0) return `Golden hour in ${m}m`
-  if (h < 12) return `Golden hour in ${h}h ${m}m`
-  return ""
-}
-
-// ── GPS accuracy ───────────────────────────────────────────────────────────────
-
-function accuracyInfo(meters: number): { label: string; colorClass: string } {
-  if (meters <= 5)
-    return { label: `±${Math.round(meters)}m`, colorClass: "text-emerald-400" }
-  if (meters <= 15)
-    return { label: `±${Math.round(meters)}m`, colorClass: "text-yellow-400" }
-  return { label: `±${Math.round(meters)}m`, colorClass: "text-red-400" }
-}
-
-// ── Component ──────────────────────────────────────────────────────────────────
 
 export function App() {
   const {
@@ -194,11 +101,8 @@ export function App() {
     attach()
 
     function onVisibilityChange() {
-      if (document.hidden) {
-        detach()
-      } else {
-        attach()
-      }
+      if (document.hidden) detach()
+      else attach()
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
@@ -218,11 +122,8 @@ export function App() {
 
     start()
     function onVisibilityChange() {
-      if (document.hidden) {
-        stop()
-      } else {
-        start()
-      }
+      if (document.hidden) stop()
+      else start()
     }
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
@@ -257,8 +158,6 @@ export function App() {
         setCurrentPosition({ latitude, longitude })
         setLoading(false)
         setSaved(true)
-        // Two-pulse confirmation pattern: works reliably on Android even from
-        // async callbacks. iOS doesn't support the Vibration API at all.
         navigator.vibrate?.([50, 60, 80])
         setTimeout(() => setSaved(false), 2000)
       },
@@ -280,10 +179,7 @@ export function App() {
   const cardinalHeading =
     liveHeading != null ? bearingToCardinal(liveHeading) : null
 
-  // Build a bottom-aligned display list: empty slots pad the top, most recent
-  // save always appears in the last (bottom) row closest to the save button.
   const displaySaves = Array.from({ length: RECENT_COUNT }, (_, i) => {
-    // i=0 → top row (oldest), i=RECENT_COUNT-1 → bottom row (newest)
     const reverseIndex = RECENT_COUNT - 1 - i
     return hydrated ? recentSaves[reverseIndex] : undefined
   })
