@@ -50,7 +50,7 @@ export default defineConfig({
         // Runtime caching for API calls (optional)
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/your-api\.com\/.*/i,
+            urlPattern: /^https:\/\/brockshaffer\.dev\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
