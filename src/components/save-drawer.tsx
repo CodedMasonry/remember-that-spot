@@ -18,7 +18,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import {
   getLightInfo,
-  getMoonInfo,
   getPhotoTimes,
   formatBearing,
   accuracyInfo,
@@ -42,7 +41,7 @@ interface Props {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="pt-5 pb-1.5 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+    <p className="pt-4 pb-1.5 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
       {children}
     </p>
   )
@@ -60,7 +59,7 @@ function Row({
   valueClass?: string
 }) {
   return (
-    <div className="flex items-center justify-between py-2">
+    <div className="flex items-center justify-between py-1">
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
         {icon}
         {label}
@@ -92,7 +91,7 @@ function TimelineRow({
   if (!isValidDate(time)) return null
   return (
     <div className="flex items-center gap-2.5 py-1.5">
-      <div className={cn("size-2 flex-shrink-0 rounded-full", dot)} />
+      <div className={cn("size-2 shrink-0 rounded-full", dot)} />
       <span className="flex-1 text-sm text-muted-foreground">{label}</span>
       {badge && (
         <span className="mr-1.5 text-[10px] font-medium text-muted-foreground/50 tabular-nums">
@@ -124,7 +123,6 @@ export function SaveDrawer({
   const today = new Date()
 
   const photo = getPhotoTimes(today, lat, lng)
-  const moon = getMoonInfo(today, lat, lng)
   const savedLight = getLightInfo(lat, lng, new Date(save.timestamp))
   const acc = accuracyInfo(save.gps.accuracy)
 
@@ -171,7 +169,7 @@ export function SaveDrawer({
           )}
           <button
             onClick={copyCoords}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 active:bg-muted/60"
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 active:bg-muted/60"
           >
             {copied ? (
               <Check className="size-3.5 text-emerald-400" />
@@ -267,33 +265,6 @@ export function SaveDrawer({
             unitSystem={save.unit_system}
           />
 
-          {/* ── Moon tonight ── */}
-          <SectionLabel>Moon Tonight</SectionLabel>
-          <div className="flex items-center justify-between py-2">
-            <p className="text-sm text-muted-foreground">Phase</p>
-            <p className="text-sm font-medium">
-              {moon.phaseEmoji} {moon.phaseLabel} · {moon.illumination}%
-            </p>
-          </div>
-          {moon.rise && isValidDate(moon.rise) && (
-            <>
-              <Separator />
-              <Row
-                label="Moonrise"
-                value={formatTime(moon.rise, save.unit_system)}
-              />
-            </>
-          )}
-          {moon.set && isValidDate(moon.set) && (
-            <>
-              <Separator />
-              <Row
-                label="Moonset"
-                value={formatTime(moon.set, save.unit_system)}
-              />
-            </>
-          )}
-
           {/* ── Conditions when saved ── */}
           {/*
            * Shows the light phase at the exact moment this spot was pinned.
@@ -317,7 +288,7 @@ export function SaveDrawer({
           </div>
 
           {/* ── Actions ── */}
-          <div className="mt-6 flex flex-col gap-2">
+          <div className="mt-5 flex flex-col gap-2">
             <button
               onClick={() => openInMaps(lat, lng, displayName)}
               className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-colors active:brightness-90"

@@ -124,41 +124,6 @@ export function formatBearing(bearing: number): string {
   return `${bearingToCardinal(bearing)} · ${Math.round(bearing)}°`
 }
 
-// ── Moon ──────────────────────────────────────────────────────────────────────
-
-export interface MoonInfo {
-  phaseLabel: string
-  phaseEmoji: string
-  /** 0–100 */
-  illumination: number
-  rise: Date | null
-  set: Date | null
-}
-
-function moonPhaseDetails(phase: number): { label: string; emoji: string } {
-  if (phase < 0.025 || phase >= 0.975) return { label: "New Moon", emoji: "🌑" }
-  if (phase < 0.235) return { label: "Waxing Crescent", emoji: "🌒" }
-  if (phase < 0.265) return { label: "First Quarter", emoji: "🌓" }
-  if (phase < 0.485) return { label: "Waxing Gibbous", emoji: "🌔" }
-  if (phase < 0.515) return { label: "Full Moon", emoji: "🌕" }
-  if (phase < 0.735) return { label: "Waning Gibbous", emoji: "🌖" }
-  if (phase < 0.765) return { label: "Last Quarter", emoji: "🌗" }
-  return { label: "Waning Crescent", emoji: "🌘" }
-}
-
-export function getMoonInfo(date: Date, lat: number, lng: number): MoonInfo {
-  const illum = SunCalc.getMoonIllumination(date)
-  const times = SunCalc.getMoonTimes(date, lat, lng)
-  const { label, emoji } = moonPhaseDetails(illum.phase)
-  return {
-    phaseLabel: label,
-    phaseEmoji: emoji,
-    illumination: Math.round(illum.fraction * 100),
-    rise: (times as { rise?: Date }).rise ?? null,
-    set: (times as { set?: Date }).set ?? null,
-  }
-}
-
 // ── Photo times ───────────────────────────────────────────────────────────────
 
 export interface PhotoTimes {
