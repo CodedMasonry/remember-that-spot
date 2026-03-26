@@ -60,10 +60,10 @@ function Row({
 }) {
   return (
     <div className="flex items-center justify-between py-1">
-      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         {icon}
         {label}
-      </p>
+      </div>
       <p className={cn("text-sm font-medium tabular-nums", valueClass)}>
         {value}
       </p>
@@ -71,10 +71,6 @@ function Row({
   )
 }
 
-/**
- * A single row in the light timeline. The colored dot gives instant phase context
- * without needing to read the label. `badge` carries secondary info like bearing.
- */
 function TimelineRow({
   dot,
   label,
@@ -137,158 +133,157 @@ export function SaveDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <DrawerHeader className="text-left">
+      <DrawerContent className="max-h-[92vh]">
+        <DrawerHeader className="shrink-0 text-left">
           <DrawerTitle>{displayName}</DrawerTitle>
           <DrawerDescription>
             Saved {new Date(save.timestamp).toLocaleString()}
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="overflow-y-auto px-4 pb-8">
+        {/* Scroll Container Fixes:
+            1. overscroll-contain: stops the "bounce" from triggering a page scroll
+            2. snap-y: enables the snapping logic
+            3. scroll-pt: ensures the snapping accounts for top padding
+        */}
+        <div className="snap-y snap-proximity scroll-pt-4 overflow-y-auto overscroll-contain px-4 pb-8">
           {/* ── Location ── */}
-          <SectionLabel>Location</SectionLabel>
-          <Row label="Latitude" value={`${lat.toFixed(6)}°`} />
-          <Separator />
-          <Row label="Longitude" value={`${lng.toFixed(6)}°`} />
-          <Separator />
-          <Row
-            label="Accuracy"
-            value={acc.label}
-            valueClass={acc.colorClass}
-            icon={<MapPin className="size-3.5" />}
-          />
-          {save.gps.altitude != null && (
-            <>
-              <Separator />
-              <Row
-                label="Altitude"
-                value={`${save.gps.altitude.toFixed(1)} m`}
-              />
-            </>
-          )}
-          <button
-            onClick={copyCoords}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 active:bg-muted/60"
-          >
-            {copied ? (
-              <Check className="size-3.5 text-emerald-400" />
-            ) : (
-              <Copy className="size-3.5" />
+          <div className="snap-start">
+            <SectionLabel>Location</SectionLabel>
+            <Row label="Latitude" value={`${lat.toFixed(6)}°`} />
+            <Separator />
+            <Row label="Longitude" value={`${lng.toFixed(6)}°`} />
+            <Separator />
+            <Row
+              label="Accuracy"
+              value={acc.label}
+              valueClass={acc.colorClass}
+              icon={<MapPin className="size-3.5" />}
+            />
+            {save.gps.altitude != null && (
+              <>
+                <Separator />
+                <Row
+                  label="Altitude"
+                  value={`${save.gps.altitude.toFixed(1)} m`}
+                />
+              </>
             )}
-            {copied ? "Copied!" : "Copy coordinates"}
-          </button>
+            <button
+              onClick={copyCoords}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 active:bg-muted/60"
+            >
+              {copied ? (
+                <Check className="size-3.5 text-emerald-400" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
+              {copied ? "Copied!" : "Copy coordinates"}
+            </button>
+          </div>
 
           {/* ── Navigation ── */}
-          <SectionLabel>Navigation</SectionLabel>
-          <Row
-            label="Distance"
-            value={formatDistance(distanceMeters, save.unit_system)}
-          />
-          {save.gps.heading != null && (
-            <>
-              <Separator />
-              <Row
-                label="Heading when saved"
-                value={`${save.gps.heading.toFixed(0)}° ${save.heading_direction}`}
-                icon={<Compass className="size-3.5" />}
-              />
-            </>
-          )}
+          <div className="snap-start">
+            <SectionLabel>Navigation</SectionLabel>
+            <Row
+              label="Distance"
+              value={formatDistance(distanceMeters, save.unit_system)}
+            />
+            {save.gps.heading != null && (
+              <>
+                <Separator />
+                <Row
+                  label="Heading when saved"
+                  value={`${save.gps.heading.toFixed(0)}° ${save.heading_direction}`}
+                  icon={<Compass className="size-3.5" />}
+                />
+              </>
+            )}
+          </div>
 
           {/* ── Light today ── */}
-          {/*
-           * Full twilight timeline — everything a photographer needs to plan
-           * a shoot at this exact location, for today.
-           *
-           * Dot colours mirror the light-phase system used throughout the app:
-           *   indigo  → nautical twilight (stars visible)
-           *   blue    → blue hour (civil twilight)
-           *   amber   → golden hour
-           *   orange  → solar noon / harsh light
-           */}
-          <SectionLabel>Light Today</SectionLabel>
-          <TimelineRow
-            dot="bg-indigo-500"
-            label="Nautical dawn"
-            time={photo.nauticalDawn}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-blue-400"
-            label="Blue hour"
-            time={photo.blueHourStart}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-amber-400"
-            label="Sunrise"
-            time={photo.sunrise}
-            badge={formatBearing(photo.sunriseBearing)}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-amber-300"
-            label="Golden hour ends"
-            time={photo.goldenHourMorningEnd}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-orange-500"
-            label="Solar noon"
-            time={photo.solarNoon}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-amber-300"
-            label="Golden hour starts"
-            time={photo.goldenHourEveningStart}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-amber-400"
-            label="Sunset"
-            time={photo.sunset}
-            badge={formatBearing(photo.sunsetBearing)}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-blue-400"
-            label="Blue hour ends"
-            time={photo.blueHourEnd}
-            unitSystem={save.unit_system}
-          />
-          <TimelineRow
-            dot="bg-indigo-500"
-            label="Nautical dusk"
-            time={photo.nauticalDusk}
-            unitSystem={save.unit_system}
-          />
+          <div className="snap-start">
+            <SectionLabel>Light Today</SectionLabel>
+            <TimelineRow
+              dot="bg-indigo-500"
+              label="Nautical dawn"
+              time={photo.nauticalDawn}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-blue-400"
+              label="Blue hour"
+              time={photo.blueHourStart}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-amber-400"
+              label="Sunrise"
+              time={photo.sunrise}
+              badge={formatBearing(photo.sunriseBearing)}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-amber-300"
+              label="Golden hour ends"
+              time={photo.goldenHourMorningEnd}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-orange-500"
+              label="Solar noon"
+              time={photo.solarNoon}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-amber-300"
+              label="Golden hour starts"
+              time={photo.goldenHourEveningStart}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-amber-400"
+              label="Sunset"
+              time={photo.sunset}
+              badge={formatBearing(photo.sunsetBearing)}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-blue-400"
+              label="Blue hour ends"
+              time={photo.blueHourEnd}
+              unitSystem={save.unit_system}
+            />
+            <TimelineRow
+              dot="bg-indigo-500"
+              label="Nautical dusk"
+              time={photo.nauticalDusk}
+              unitSystem={save.unit_system}
+            />
+          </div>
 
           {/* ── Conditions when saved ── */}
-          {/*
-           * Shows the light phase at the exact moment this spot was pinned.
-           * Useful for understanding what you intended to capture (or revisit).
-           */}
-          <SectionLabel>When Saved</SectionLabel>
-          <div
-            className={cn(
-              "flex items-center justify-between rounded-lg px-3 py-2.5",
-              savedLight.bgClass
-            )}
-          >
-            <span
-              className={cn("text-sm font-semibold", savedLight.colorClass)}
+          <div className="snap-start">
+            <SectionLabel>When Saved</SectionLabel>
+            <div
+              className={cn(
+                "flex items-center justify-between rounded-lg px-3 py-2.5",
+                savedLight.bgClass
+              )}
             >
-              {savedLight.label}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {savedLight.detail}
-            </span>
+              <span
+                className={cn("text-sm font-semibold", savedLight.colorClass)}
+              >
+                {savedLight.label}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {savedLight.detail}
+              </span>
+            </div>
           </div>
 
           {/* ── Actions ── */}
-          <div className="mt-5 flex flex-col gap-2">
+          <div className="mt-5 flex snap-end flex-col gap-2">
             <button
               onClick={() => openInMaps(lat, lng, displayName)}
               className="flex w-full items-center justify-center gap-2 rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-colors active:brightness-90"
