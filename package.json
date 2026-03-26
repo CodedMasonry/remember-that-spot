@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run generate-pwa-assets && tsc -b && vite build",
+    "build": "pnpm run generate-pwa-assets && tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "idb": "^8.0.3",
     "lucide-react": "^0.577.0",
+    "picomatch": "^4.0.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "shadcn": "^4.1.0",
