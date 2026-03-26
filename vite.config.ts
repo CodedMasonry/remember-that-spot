@@ -11,7 +11,56 @@ export default defineConfig({
     react(),
     tailwindcss(),
     mkcert(),
-    VitePWA({ registerType: "autoUpdate" }),
+    VitePWA({
+      registerType: "autoUpdate", // auto-updates SW in background
+      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+      manifest: {
+        name: "Remember That Spot",
+        short_name: "RT Spot",
+        theme_color: "#0a0a0a",
+        background_color: "#0a0a0a",
+        display: "standalone",
+        icons: [
+          {
+            src: "pwa-64x64.png",
+            sizes: "64x64",
+            type: "image/png",
+          },
+          {
+            src: "pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "maskable-icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
+      },
+      workbox: {
+        // Cache your app shell + assets
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Runtime caching for API calls (optional)
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/your-api\.com\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-cache",
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
+        ],
+      },
+      devOptions: { enabled: true },
+    }),
   ],
   server: {
     https: {},
