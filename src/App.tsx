@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react"
-import { MapPin, Compass } from "lucide-react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { MapPin, Compass, Navigation, AlertCircle } from "lucide-react"
 import { RecentSave } from "@/components/recent-save"
 import { SaveDrawer } from "@/components/save-drawer"
 import { useSavesStore } from "@/stores/saves-store"
@@ -8,12 +8,23 @@ import { getLightInfo, getNextGoldenLabel, accuracyInfo } from "@/lib/light"
 import { cn } from "@/lib/utils"
 import type { NewSaveRecord, SaveRecord } from "@/types/save"
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+
 interface DeviceOrientationEventiOS extends DeviceOrientationEvent {
   requestPermission?: () => Promise<"granted" | "denied">
   webkitCompassHeading?: number
 }
 
 const RECENT_COUNT = 3
+const GPS_STORAGE_KEY = "pwa_gps_authorized"
 
 export function App() {
   const {
@@ -26,6 +37,24 @@ export function App() {
     distanceFor,
     setCurrentPosition,
   } = useSavesStore()
+
+  // ── 1. State ──
+  // GPS unlocked is seeded from localStorage so returning users skip the dialog.
+  // We never call getCurrentPosition on mount — iOS will silently deny any call
+  // that isn't directly inside a user gesture, and that denial has no prompt.
+  const [isGpsUnlocked, setIsGpsUnlocked] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem(GPS_STORAGE_KEY) === "true"
+  })
+
+  const [showPermissionDialog, setShowPermissionDialog] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem(GPS_STORAGE_KEY) !== "true"
+  })
+
+  // "denied" = user tapped the iOS system prompt and chose Don't Allow.
+  // We can't fix that in JS — they need to go to Settings.
+  const [permissionDenied, setPermissionDenied] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -45,62 +74,79 @@ export function App() {
 
   const recentSaves = saves.slice(0, RECENT_COUNT)
 
+  // ── 2. Location Fetching ──
+  const fetchPosition = useCallback(() => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords
+        setLivePosition({ latitude, longitude, accuracy })
+        setCurrentPosition({ latitude, longitude })
+        setError(null)
+      },
+      (err) => {
+        if (!document.hidden) {
+          setError(
+            err.code === 1 ? "Location denied. Check Settings." : err.message
+          )
+        }
+      },
+      { enableHighAccuracy: false, maximumAge: 30_000, timeout: 10_000 }
+    )
+  }, [setCurrentPosition])
+
+  // ── 3. Effects ──
+
   useEffect(() => {
     hydrate()
   }, [hydrate])
 
+  // Polling — only once GPS is confirmed unlocked via a real user gesture
   useEffect(() => {
-    function fetchPosition() {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords
-          setLivePosition({ latitude, longitude, accuracy })
-          setCurrentPosition({ latitude, longitude })
-        },
-        () => {},
-        { enableHighAccuracy: false, maximumAge: 30_000, timeout: 10_000 }
-      )
-    }
+    if (!isGpsUnlocked) return
 
     fetchPosition()
     const id = setInterval(fetchPosition, 30_000)
 
-    function onVisibilityChange() {
+    const onVisibilityChange = () => {
       if (document.hidden) clearInterval(id)
       else fetchPosition()
     }
+
     document.addEventListener("visibilitychange", onVisibilityChange)
     return () => {
       clearInterval(id)
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [setCurrentPosition])
+  }, [isGpsUnlocked, fetchPosition])
 
+  // Compass
   useEffect(() => {
+    if (!isGpsUnlocked) return
+
     const handler = (e: DeviceOrientationEvent) => {
       const ios = e as DeviceOrientationEventiOS
       const heading = ios.webkitCompassHeading ?? e.alpha
       headingRef.current = heading
       const t = Date.now()
-      if (t - lastHeadingUpdate.current < 1_000) return
+      if (t - lastHeadingUpdate.current < 500) return
       lastHeadingUpdate.current = t
       setLiveHeading(heading)
     }
 
-    function attach() {
+    const attach = () => {
       window.addEventListener("deviceorientationabsolute", handler, {
         passive: true,
       })
       window.addEventListener("deviceorientation", handler, { passive: true })
     }
-    function detach() {
+    const detach = () => {
       window.removeEventListener("deviceorientationabsolute", handler)
       window.removeEventListener("deviceorientation", handler)
     }
 
     attach()
-
-    function onVisibilityChange() {
+    const onVisibilityChange = () => {
       if (document.hidden) detach()
       else attach()
     }
@@ -109,35 +155,61 @@ export function App() {
       detach()
       document.removeEventListener("visibilitychange", onVisibilityChange)
     }
-  }, [])
+  }, [isGpsUnlocked])
 
+  // Clock
   useEffect(() => {
-    let id: ReturnType<typeof setInterval>
-    function start() {
-      id = setInterval(() => setNow(new Date()), 60_000)
-    }
-    function stop() {
-      clearInterval(id)
-    }
-
-    start()
-    function onVisibilityChange() {
-      if (document.hidden) stop()
-      else start()
-    }
-    document.addEventListener("visibilitychange", onVisibilityChange)
-    return () => {
-      stop()
-      document.removeEventListener("visibilitychange", onVisibilityChange)
-    }
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
   }, [])
+
+  // ── 4. Handlers ──
+
+  function handleRequestPermissions() {
+    // getCurrentPosition must be the very first call — no await before it.
+    // iOS drops the gesture trust context after any microtask yield, and will
+    // silently deny without showing a prompt.
+    setPermissionDenied(false)
+    setError(null)
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        // GPS granted — now safe to await compass (we're in a callback, not
+        // blocking the original gesture).
+        try {
+          const MoveEvent =
+            DeviceOrientationEvent as unknown as DeviceOrientationEventiOS
+          if (typeof MoveEvent.requestPermission === "function") {
+            await MoveEvent.requestPermission()
+          }
+        } catch {
+          // Compass denied — non-fatal
+        }
+
+        localStorage.setItem(GPS_STORAGE_KEY, "true")
+        setIsGpsUnlocked(true)
+        setShowPermissionDialog(false)
+        setError(null)
+
+        const { latitude, longitude, accuracy } = pos.coords
+        setLivePosition({ latitude, longitude, accuracy })
+        setCurrentPosition({ latitude, longitude })
+      },
+      (err) => {
+        localStorage.removeItem(GPS_STORAGE_KEY)
+        if (err.code === 1) {
+          // User tapped "Don't Allow" — can only be fixed in Settings.
+          setPermissionDenied(true)
+        } else {
+          setError(err.message)
+        }
+      },
+      { enableHighAccuracy: false, timeout: 15_000 }
+    )
+  }
 
   async function saveLocation() {
-    const event = DeviceOrientationEvent as unknown as DeviceOrientationEventiOS
-    if (typeof event.requestPermission === "function") {
-      await event.requestPermission()
-    }
-
+    if (!isGpsUnlocked) return
     setLoading(true)
     setError(null)
 
@@ -169,6 +241,7 @@ export function App() {
     )
   }
 
+  // ── 5. Render Helpers ──
   const light = livePosition
     ? getLightInfo(livePosition.latitude, livePosition.longitude, now)
     : null
@@ -178,7 +251,6 @@ export function App() {
   const accuracy = livePosition ? accuracyInfo(livePosition.accuracy) : null
   const cardinalHeading =
     liveHeading != null ? bearingToCardinal(liveHeading) : null
-
   const displaySaves = Array.from({ length: RECENT_COUNT }, (_, i) => {
     const reverseIndex = RECENT_COUNT - 1 - i
     return hydrated ? recentSaves[reverseIndex] : undefined
@@ -186,7 +258,68 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col gap-2 px-3 pt-3 pb-2">
-      {/* ── Status strip ── */}
+      {/* iOS PWA Permission Dialog */}
+      <Dialog
+        open={showPermissionDialog}
+        onOpenChange={(open) => {
+          // Block dismissal — app is non-functional without location
+          if (!open && !isGpsUnlocked) return
+          setShowPermissionDialog(open)
+        }}
+      >
+        <DialogContent className="max-w-[90vw] rounded-2xl">
+          <DialogHeader>
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Navigation className="size-6" />
+            </div>
+            <DialogTitle className="text-center text-xl">
+              {permissionDenied ? "Location Blocked" : "Enable Location"}
+            </DialogTitle>
+            <DialogDescription className="text-center text-balance">
+              {permissionDenied
+                ? "Location access was denied. To fix this, go to:"
+                : "To save your spots and use the compass, this app needs access to your GPS and sensors."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Settings instructions — shown after a denial (err.code === 1) */}
+          {permissionDenied && (
+            <div className="rounded-xl bg-muted/60 px-4 py-3 text-sm leading-relaxed text-foreground">
+              <p className="mb-1 font-semibold">Settings → Safari → Location</p>
+              <p className="text-xs text-muted-foreground">
+                Set to <strong>Allow</strong> or <strong>Ask</strong>, then tap
+                Try Again.
+              </p>
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="mb-1 font-semibold">Or via Privacy:</p>
+                <p className="text-xs text-muted-foreground">
+                  Settings → Privacy & Security → Location Services → Safari
+                  Websites → <strong>While Using</strong>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Generic error (non-denial failures) */}
+          {error && !permissionDenied && (
+            <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={handleRequestPermissions}
+              className="w-full rounded-xl py-6 text-lg font-semibold"
+            >
+              {permissionDenied ? "Try Again" : "Allow Access"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Header Status Bar */}
       <div className="flex items-stretch gap-2">
         <div
           className={cn(
@@ -233,66 +366,48 @@ export function App() {
         </div>
       </div>
 
-      {/* ── Recent saves ── */}
+      {/* Recent List */}
       <div className="flex flex-col gap-1.5">
         <p className="px-0.5 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
           Recent
         </p>
         <div className="grid grid-cols-1 gap-1.5">
-          {displaySaves.map((save, i) => {
-            const isLoading = !hydrated
-
-            if (save) {
-              return (
-                <RecentSave
-                  key={save.id}
-                  {...save}
-                  name={labelFor(save)}
-                  distance_meters={distanceFor(save)}
-                  onClick={() => setSelectedSave(save)}
-                />
-              )
-            }
-
-            return (
+          {displaySaves.map((save, i) =>
+            save ? (
+              <RecentSave
+                key={save.id}
+                {...save}
+                name={labelFor(save)}
+                distance_meters={distanceFor(save)}
+                onClick={() => setSelectedSave(save)}
+              />
+            ) : (
               <div
                 key={`placeholder-${i}`}
                 className={cn(
                   "h-16 w-full rounded-md border",
-                  isLoading
+                  !hydrated
                     ? "animate-pulse border-transparent bg-muted/40"
                     : "border-dashed border-muted/40"
                 )}
-                aria-hidden
               />
             )
-          })}
+          )}
         </div>
       </div>
 
-      {/* ── Save button ── */}
+      {/* Primary Action */}
       <button
         onClick={saveLocation}
         onPointerDown={() => navigator.vibrate?.(10)}
-        disabled={loading}
+        disabled={loading || !isGpsUnlocked}
         className={cn(
           "relative flex w-full flex-1 flex-col items-center justify-center gap-3 rounded-2xl",
-          "bg-primary text-primary-foreground",
-          "transition-all duration-150 select-none",
-          "active:scale-[0.985] active:brightness-95",
-          "disabled:opacity-60 disabled:active:scale-100",
+          "bg-primary text-primary-foreground transition-all duration-150 select-none",
+          "active:scale-[0.985] active:brightness-95 disabled:opacity-60",
           saved && "bg-emerald-600"
         )}
       >
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-2xl"
-          style={{
-            background:
-              "radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.07) 0%, transparent 65%)",
-          }}
-        />
-
         <MapPin
           className={cn(
             "transition-all duration-150",
@@ -301,34 +416,25 @@ export function App() {
           )}
           strokeWidth={2}
         />
-
         <span className="text-[1.2rem] leading-none font-semibold tracking-tight">
           {loading ? "Getting location…" : saved ? "Saved!" : "Save Location"}
         </span>
 
-        {error && (
-          <span className="text-xs font-medium text-red-300 opacity-90">
-            {error}
-          </span>
-        )}
-
-        {!loading && !saved && livePosition && (
-          <span className="text-[11px] font-medium tabular-nums opacity-40">
-            {livePosition.latitude.toFixed(5)},&nbsp;
-            {livePosition.longitude.toFixed(5)}
-          </span>
+        {error && !showPermissionDialog && (
+          <div className="absolute bottom-4 flex items-center gap-1 text-red-200">
+            <AlertCircle className="size-3" />
+            <span className="text-[10px] font-medium">{error}</span>
+          </div>
         )}
       </button>
 
-      {/* ── Drawer ── */}
+      {/* Detailed View Drawer */}
       <SaveDrawer
         save={selectedSave}
         displayName={selectedSave ? labelFor(selectedSave) : ""}
         distanceMeters={selectedSave ? distanceFor(selectedSave) : null}
         open={selectedSave !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedSave(null)
-        }}
+        onOpenChange={(open) => !open && setSelectedSave(null)}
         onDelete={remove}
       />
     </div>
